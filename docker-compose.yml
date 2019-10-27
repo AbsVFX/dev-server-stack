@@ -1,0 +1,61 @@
+version: '3'
+
+services:
+  # Development CI/CD Server, Port :8080
+  jenkins:
+    #image: jenkins_docker:latest Custom image to include docker binaries
+    image: jenkins/jenkins:lts
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - docker_certs:/certs
+      - /int/data/git:/git
+    networks:
+      - nginx_net
+      - jenkins_net
+    environment:
+      - "DOCKER_HOST=tcp://docker:2376"
+      - "DOCKER_CERT_PATH=/certs/client"
+      - "DOCKER_TLS_VERIFY=1"
+
+  # Docker inside Docker
+  docker:
+    image: docker:dind
+    volumes:
+      - docker_certs:/certs
+    networks:
+      - jenkins_net
+    environment:
+      - "DOCKER_TLS_CERTDIR=/certs"
+    privileged: yes
+
+  # Public NGINX Server
+  nginx:
+    image: nginx:latest
+    networks:
+      - nginx_net
+    volumes:
+      - docker_certs:/certs
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - 80:80
+      - 443:443
+
+  # Docker Registry
+  registry:
+    image: registry:latest
+    volumes:
+      - docker_certs:/certs
+    networks:
+      - nginx_net
+      - jenkins_net
+    environment:
+      - "REGISTRY_HTTP_TLS_CERTIFICATE=/certs/server/cert.pem"
+      - "REGISTRY_HTTP_TLS_KEY=/certs/server/key.pem"
+
+networks:
+  nginx_net:
+  jenkins_net:
+
+volumes:
+  docker_certs:
+  jenkins_data:
